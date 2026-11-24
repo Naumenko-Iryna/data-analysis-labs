@@ -356,8 +356,8 @@ with tab12:
     with col_p3:
         selected_k = st.slider("Обране k для профілю та PCA", 2, max_k, 3)
 
-    @st.cache_data
-    def load_and_scale_diamonds(n_samples):
+    @st.cache_resource
+    def fit_clustergrams(n_samples, k_limit):
         diamonds = sns.load_dataset("diamonds")
         sample = diamonds.sample(n=n_samples, random_state=42).reset_index(drop=True)
         features = ['carat', 'depth', 'table', 'price', 'x', 'y', 'z']
@@ -365,18 +365,19 @@ with tab12:
         X_raw = X_raw[(X_raw['x'] > 0) & (X_raw['y'] > 0) & (X_raw['z'] > 0)]
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X_raw)
-        return X_raw, X_scaled
 
-    X_raw, X_scaled = load_and_scale_diamonds(sample_size)
+        cgram_km = Clustergram(range(1, k_limit + 1), n_init=30, random_state=42)
+        cgram_km.fit(X_scaled)
+
+        cgram_gm = Clustergram(range(1, k_limit + 1), method="gmm", n_init=5, random_state=42)
+        cgram_gm.fit(X_scaled)
+
+        return X_raw, X_scaled, cgram_km, cgram_gm
 
     with st.spinner("Обчислення кластерограм K-Means та GMM..."):
-        cgram_kmeans = Clustergram(range(1, max_k + 1), n_init=30, random_state=42)
-        cgram_kmeans.fit(X_scaled)
+        X_raw, X_scaled, cgram_kmeans, cgram_gmm = fit_clustergrams(sample_size, max_k)
 
-        cgram_gmm = Clustergram(range(1, max_k + 1), method="gmm", n_init=5, random_state=42)
-        cgram_gmm.fit(X_scaled)
-
-    # Кластерограми поруч
+    # Кластерограми поруч (без передачі конфліктного s=... у cluster_style)
     g_col1, g_col2 = st.columns(2)
     with g_col1:
         st.subheader("1. Кластерограма K-Means")
@@ -384,7 +385,7 @@ with tab12:
         cgram_kmeans.plot(
             ax=ax12_1,
             line_style=dict(color="#1f77b4", alpha=0.6),
-            cluster_style=dict(color="#d9534f", s=70)
+            cluster_style=dict(color="#d9534f")
         )
         ax12_1.set_title("K-Means (k-середніх)")
         ax12_1.set_xlabel("Кількість кластерів (k)")
@@ -400,7 +401,7 @@ with tab12:
         cgram_gmm.plot(
             ax=ax12_2,
             line_style=dict(color="#2ca02c", alpha=0.6),
-            cluster_style=dict(color="#9467bd", s=70)
+            cluster_style=dict(color="#9467bd")
         )
         ax12_2.set_title("Gaussian Mixture Model (GMM)")
         ax12_2.set_xlabel("Кількість кластерів (k)")
